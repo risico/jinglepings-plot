@@ -5,8 +5,8 @@ import (
 	"image"
 	"image/png"
 	"io"
-	"net"
 	"os"
+	"strings"
 	"time"
 
 	fastping "github.com/tatsushid/go-fastping"
@@ -32,78 +32,82 @@ func main() {
 
 	defer file.Close()
 
-	err = pingImage(file)
+	pixels, err := getPixels(file)
 
 	if err != nil {
 		fmt.Println("Error: Image could not be decoded")
 		os.Exit(1)
 	}
+
+	pingPixels(pixels)
+}
+
+func pingAll(pixels []Pixel) {
+	p := fastping.NewPinger()
+	p.Source("2a02:2f05:6c19:1400:d81a:22d:fdb1:dc25")
+	p.Network("udp")
+	p.MaxRTT = time.Millisecond * 100
+
+	for x := 0; x < len(pixels); x++ {
+		p.AddIP(pixels[x].toIPv6())
+	}
+
+	err := p.Run()
+	if err != nil {
+		fmt.Printf("ERRRO: %+v \n", err)
+	}
+}
+
+func pingPixels(pixels []Pixel) {
+	for {
+		go pingAll(pixels)
+
+		time.Sleep(50 * time.Millisecond)
+	}
 }
 
 // Get the bi-dimensional pixel array
-func pingImage(file io.Reader) error {
-	p := fastping.NewPinger()
-	p.Network("udp")
-	p.MaxRTT = 1
+func getPixels(file io.Reader) ([]Pixel, error) {
 
 	img, _, err := image.Decode(file)
 
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	bounds := img.Bounds()
 	width, height := bounds.Max.X, bounds.Max.Y
 
-	var pixels [][]Pixel
+	var pixels []Pixel
 	for y := 0; y < height; y++ {
-		var row []Pixel
-		fmt.Printf("|\n")
 		for x := 0; x < width; x++ {
 			pixel := rgbaToPixel(img.At(x, y).RGBA())
+			pixel.X = x
+			pixel.Y = y
+
 			if pixel.R != 0 && pixel.G != 0 && pixel.B != 0 {
-				fmt.Printf("#")
-
-				ip := pixel.toIPv6(x, y)
-
-				ra, err := net.ResolveIPAddr("ip6:icmp", ip)
-				if err != nil {
-					fmt.Println(err)
-					os.Exit(1)
-				}
-
-				p.AddIPAddr(ra)
-
-				row = append(row, pixel)
-			} else {
-				fmt.Printf(" ")
+				pixels = append(pixels, pixel)
 			}
 		}
-		pixels = append(pixels, row)
 	}
 
-	p.OnRecv = func(addr *net.IPAddr, rtt time.Duration) {}
-	p.OnIdle = func() {}
-	err = p.Run()
-	if err != nil {
-	}
-
-	return nil
+	return pixels, nil
 }
 
 // img.At(x, y).RGBA() returns four uint32 values; we want a Pixel
 func rgbaToPixel(r uint32, g uint32, b uint32, a uint32) Pixel {
-	return Pixel{int(r / 257), int(g / 257), int(b / 257), int(a / 257)}
+	return Pixel{R: int(r / 257), G: int(g / 257), B: int(b / 257)}
 }
 
-func (c *Pixel) toIPv6(x, y int) string {
-	return fmt.Sprintf("%s:%d:%d:%02x:%02x:%02x", ipPrefix, x, y, c.R, c.G, c.B)
+func (c *Pixel) toIPv6() string {
+	return strings.ToUpper(fmt.Sprintf("%s:%d:%d:%02x:%02x:%02x", ipPrefix, c.X, c.Y, c.R, c.G, c.B))
 }
 
 // Pixel struct example
 type Pixel struct {
+	X int
+	Y int
 	R int
 	G int
 	B int
-	A int
 }

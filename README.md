@@ -1,6 +1,8 @@
 # jinglepings-plot
 hacky project to plot images on https://jinglepings.com/
 
+![](https://i.imgur.com/0gfUp2T.png)
+
 ## Usage
 
 1. Download/Clone the repository
