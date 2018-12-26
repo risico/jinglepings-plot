@@ -12,7 +12,10 @@ import (
 	fastping "github.com/tatsushid/go-fastping"
 )
 
+// IP prefix of jinglepings
 const ipPrefix = "2001:4c08:2028"
+const maxRTT = time.Millisecond * 100
+const sleep = 50 * time.Millisecond
 
 func main() {
 	// You can register another format here
@@ -44,9 +47,8 @@ func main() {
 
 func pingAll(pixels []Pixel) {
 	p := fastping.NewPinger()
-	p.Source("2a02:2f05:6c19:1400:d81a:22d:fdb1:dc25")
 	p.Network("udp")
-	p.MaxRTT = time.Millisecond * 100
+	p.MaxRTT = maxRTT
 
 	for x := 0; x < len(pixels); x++ {
 		p.AddIP(pixels[x].toIPv6())
@@ -62,7 +64,7 @@ func pingPixels(pixels []Pixel) {
 	for {
 		go pingAll(pixels)
 
-		time.Sleep(50 * time.Millisecond)
+		time.Sleep(sleep)
 	}
 }
 
